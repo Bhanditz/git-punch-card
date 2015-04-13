@@ -24,7 +24,7 @@ Only map authors who have committed since this date.
 """
 
 
-MIN_COMMITS = 500
+MIN_COMMITS = 5
 """
 Minimum number of commits for an author to be considered.
 """

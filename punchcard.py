@@ -1,6 +1,7 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import sys
+import argparse
 from subprocess import check_output
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
@@ -10,13 +11,11 @@ from iso8601 import parse_date
 from tzlocal import get_localzone
 import matplotlib.pyplot as plt
 
+# knobs
 CIRCLE_SCALE = 1250
 HEIGHT_SCALE = 0.8
 WIDTH_SCALE  = 1.1
 LABEL_SIZE = 24
-"""
-Numbers to tweak
-"""
 
 AUTHORS_SINCE = get_localzone().localize(datetime.now()) - timedelta(days=365)
 """
@@ -31,12 +30,17 @@ Minimum number of commits for an author to be considered.
 
 def _gen_plot(xs, ys, ss, names):
     """
-    Horrible mostly-copy-pasta code that generates the scatter plot and writes
-    it to hardcoded out.png.
-    @param xs: list
-    @param ys: list
-    @param ss: list
-    @param names: list
+    Horrible code that generates the scatter plot and writes it to hard-coded
+    file "out.png".
+
+    Args:
+        xs (list)
+        ys (list)
+        ss (list)
+        names (list)
+
+    Returns
+        None
     """
     fig = plt.figure(figsize=(WIDTH_SCALE * 24,
                               HEIGHT_SCALE * len(names)),
@@ -62,10 +66,13 @@ def _gen_plot(xs, ys, ss, names):
 
 def _add_commit_to_counts(commit_counts, (name, dt)):
     """
-    @param commit_counts: dict
-    @param name: str
-    @param timestamp: str, ie. 2015-04-10T14:03:47-04:00
-    @return dict
+    Args
+        commit_counts (dict)
+        name (str)
+        timestamp (str): iso8601
+
+    Returns
+        dict
     """
     commit_counts[name][dt.hour] += 1
     return commit_counts
@@ -74,6 +81,12 @@ def _normalize_counts(counts):
     """
     Normalize the counts on a per-user basis so everyone takes up about the same
     amount of volume on the graph.
+
+    Args
+        counts (dict)
+
+    Returns
+        dict
     """
     for name, counts_by_hour in counts.items():
         total = sum(counts_by_hour.values())
@@ -83,9 +96,11 @@ def _normalize_counts(counts):
 
 def _parse_timestamp((name, timestamp)):
     """
-    @param name: str
-    @param timestamp: str, ie. 2015-04-10T14:03:47-04:00
-    @return (str, datetime.datetime)
+    Args
+        (author (str), timestamp (str))
+
+    Returns
+        (str, datetime.datetime)
     """
     dt = parse_date(timestamp).astimezone(get_localzone())
     return name, dt
@@ -95,16 +110,15 @@ def _sanitize_author((author, timestamp)):
     Some bullshit attempt to sanitize the author string which varies between
     peoples machines.
 
-    @param author: str
-    @return str
+    Args:
+        (author (str), timestamp (str))
+
+    Returns:
+        (str, str)
     """
     return author.lower(), timestamp
 
 def _filter_old_authors(commits):
-    """
-    @param commits: list
-    @return list
-    """
     newest_commits = {}
     for author, dt in commits:
         cur_newest = newest_commits.get(author)
@@ -118,8 +132,11 @@ def _filter_old_authors(commits):
 
 def _filter_low_contributing_authors(commits):
     """
-    @param commits: list
-    @return list
+    Args:
+        commits (list)
+
+    Returns:
+        list
     """
     counts = Counter([author for author, _ in commits])
     return [(author, dt) for author, dt in commits
@@ -127,8 +144,11 @@ def _filter_low_contributing_authors(commits):
 
 def _get_counts(git_dir):
     """
-    @param git_dir
-    @return dict
+    Args:
+        git_dir (str)
+
+    Returns:
+        dict
     """
     command = ['git', '--git-dir', git_dir, 'log', '--pretty=format:%aN|%aI']
     commits = [line.split('|') for line in check_output(command).splitlines()]
@@ -143,6 +163,11 @@ def _get_counts(git_dir):
 
 def _create_seqs(counts):
     """
+    Args:
+        counts (dict)
+
+    Returns:
+        (list, list, list, list)
     """
     sorted_names = sorted(counts.keys())
     name_indices = dict(zip(sorted_names, range(len(counts))))
@@ -156,17 +181,16 @@ def _create_seqs(counts):
             ss.append(count)
     return xs, ys, ss, sorted_names
 
-def _main(git_dir, normalize):
-    """
-    @param git_dir: str, path to the .git directory of the repo
-    @param normalize: boolean, normalize commits on a per-user basis
-    """
-    counts = _get_counts(git_dir)
-    if normalize:
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--normalize', action='store_true')
+    parser.add_argument('git_directory')
+    args = parser.parse_args()
+
+    counts = _get_counts(args.git_directory)
+    if args.normalize:
         counts = _normalize_counts(counts)
     _gen_plot(*_create_seqs(counts))
 
 if __name__ == '__main__':
-    normalize = '--normalize' in sys.argv
-    git_dir = sys.argv[-1]
-    _main(git_dir, normalize)
+    main()
